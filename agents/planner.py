@@ -1,17 +1,46 @@
-class PlannerAgent:
-    def __init__(self, llm):
-        self.llm = llm
+from agents.base_agent import BaseAgent
+from core.task import Task
 
-    def create_plan(self, task: str):
+
+class PlannerAgent(BaseAgent):
+    def __init__(self, name, llm, tools, memory):
+        super().__init__(name, llm, tools, memory)
+
+    def can_handle(self, task: Task):
+        return task.task_type == "plan"
+
+    def execute(self, task: Task):
+
+        request = task.data["request"]
+
         prompt = f"""
-Break this into a software architecture plan:
+You are an expert software architect.
 
-Task: {task}
+Break this request into a development plan.
 
-Return JSON:
-- goal
-- steps
-- files needed
+User Request:
+{request}
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "project_name": "",
+    "description": "",
+    "steps": [],
+    "files": [],
+    "languages": [],
+    "dependencies": []
+}}
 """
 
-        return self.llm.generate(prompt)
+        response = self.llm.generate(prompt)
+
+        # Save the latest generated plan
+        self.memory.add_knowledge(
+            "last_plan",
+            response
+        )
+
+        return response
