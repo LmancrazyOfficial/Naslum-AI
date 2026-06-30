@@ -1,36 +1,45 @@
+import os
+
 from agents.base_agent import BaseAgent
 from core.task import Task
-import subprocess
-import os
+from core.sandbox import Sandbox
 
 
 class TesterAgent(BaseAgent):
+
     def __init__(self, name, llm, tools, memory):
         super().__init__(name, llm, tools, memory)
+        self.sandbox = Sandbox()
 
     def can_handle(self, task: Task):
         return task.task_type == "test"
 
     def execute(self, task: Task):
 
-        command = task.data.get("command")
+        project = task.data.get("project")
 
-        if command is None:
-            command = "python main.py"
+        # Try running main entry point
+        result = self.sandbox.run_python_file("main.py")
 
-        result = self.tools.run_command(command)
-
-        success = result["returncode"] == 0
-
-        report = {
-            "success": success,
-            "stdout": result["stdout"],
-            "stderr": result["stderr"]
+        test_result = {
+            "success": result["success"],
+            "output": result["output"],
+            "error": result["error"]
         }
 
-        self.memory.add_knowledge(
+        # Store real test result in memory
+        self.memory.update_knowledge(
+            project,
             "last_test",
-            report
+            test_result
         )
 
-        return report
+        self.memory.append_history(
+            project,
+            {
+                "event": "test_run",
+                "success": result["success"]
+            }
+        )
+
+        return test_result
