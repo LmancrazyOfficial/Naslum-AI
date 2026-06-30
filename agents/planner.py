@@ -1,10 +1,17 @@
 class PlannerAgent:
+    def __init__(self, llm):
+        self.llm = llm
+
     def create_plan(self, task: str):
-        return {
-            "task": task,
-            "steps": [
-                "Define structure",
-                "Generate code files",
-                "Run tests"
-            ]
-        }
+        prompt = f"""
+Break this into a software architecture plan:
+
+Task: {task}
+
+Return JSON:
+- goal
+- steps
+- files needed
+"""
+
+        return self.llm.generate(prompt)
