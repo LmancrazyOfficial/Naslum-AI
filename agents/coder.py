@@ -64,10 +64,11 @@ ERRORS:
 FIX MODE: {fix_mode}
 
 RULES:
-- Use existing code when possible
-- Avoid duplication
-- Modify only necessary parts
-- Respect architecture dependencies
+- You may assume code will be executed in a real runtime
+- Ensure dependencies are installable
+- Ensure main.py can run directly
+- Avoid broken imports
+- Keep system runnable at all times
 
 Return ONLY valid JSON:
 {{
