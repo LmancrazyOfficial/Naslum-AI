@@ -1,19 +1,44 @@
 from orchestrator import Orchestrator
 
+
+def print_banner():
+    print("=" * 60)
+    print("            AI FACTORY")
+    print("      Autonomous Software Engineer")
+    print("=" * 60)
+
+
 def main():
-    print("AI Factory Starting...")
+
+    print_banner()
 
     orchestrator = Orchestrator()
 
     while True:
-        user_input = input("\nEnter task (or 'exit'): ")
 
-        if user_input.lower() == "exit":
+        try:
+
+            user_input = input("\nAI> ").strip()
+
+            if not user_input:
+                continue
+
+            if user_input.lower() in [
+                "exit",
+                "quit"
+            ]:
+                print("Goodbye.")
+                break
+
+            orchestrator.run(user_input)
+
+        except KeyboardInterrupt:
+            print("\nInterrupted.")
             break
 
-        result = orchestrator.run(user_input)
-        print("\n=== RESULT ===")
-        print(result)
+        except Exception as e:
+            print(f"\nFatal Error: {e}")
+
 
 if __name__ == "__main__":
     main()
