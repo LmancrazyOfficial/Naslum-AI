@@ -1,15 +1,15 @@
-import subprocess
-import shlex
+from core.git_manager import GitManager
 
 
 class ToolExecutor:
 
     def __init__(self, workspace="workspace"):
         self.workspace = workspace
+        self.git = GitManager(workspace)
+        self.git.init_repo()
 
     def run_command(self, command):
 
-        # Safety filter (VERY important)
         blocked = ["rm -rf", "shutdown", "reboot", ":(){", "mkfs"]
 
         if any(b in command for b in blocked):
@@ -18,6 +18,9 @@ class ToolExecutor:
                 "error": "Blocked unsafe command",
                 "output": ""
             }
+
+        import subprocess
+        import shlex
 
         try:
             result = subprocess.run(
@@ -39,4 +42,4 @@ class ToolExecutor:
                 "success": False,
                 "output": "",
                 "error": str(e)
-  }
+            }
