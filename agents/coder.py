@@ -1,92 +1,79 @@
-import os
 import json
+import os
 
-class CoderAgent:
-    def __init__(self, llm):
-        self.llm = llm
+from agents.base_agent import BaseAgent
+from core.task import Task
 
-    def generate_project(self, plan, workspace):
+
+class CoderAgent(BaseAgent):
+
+    def __init__(self, name, llm, tools, memory):
+        super().__init__(name, llm, tools, memory)
+
+    def can_handle(self, task: Task):
+        return task.task_type == "code"
+
+    def execute(self, task: Task):
+
+        plan = self.memory.get_knowledge(
+            "default",
+            "last_plan"
+        )
+
         prompt = f"""
 You are a senior software engineer.
 
-Based on this software plan:
+You must generate a COMPLETE working multi-file project.
 
+ARCHITECTURE PLAN:
 {plan}
-
-Generate a COMPLETE multi-file project.
 
 Return ONLY valid JSON in this format:
 
 {{
   "files": {{
-    "main.py": "print('Hello')",
-    "README.md": "# Project"
-  }}
+    "main.py": "print('hello')",
+    "utils/helper.py": "def help(): pass"
+  }},
+  "next_task": "test"
 }}
 """
 
-        output = self.llm.generate(prompt)
+        response = self.llm.generate(prompt)
 
         try:
-            data = json.loads(output)
-
-            for path, code in data["files"].items():
-                full_path = os.path.join(workspace, path)
-
-                os.makedirs(os.path.dirname(full_path) or workspace, exist_ok=True)
-
-                with open(full_path, "w", encoding="utf-8") as f:
-                    f.write(code)
-
-            return data
-
-        except Exception as e:
+            data = json.loads(response)
+        except Exception:
             return {
-                "error": f"Failed to generate project: {e}",
-                "raw_output": output
+                "error": "Invalid JSON from LLM",
+                "raw": response
             }
 
-    def fix_code(self, fix_prompt, workspace):
-        prompt = f"""
-You are an expert software debugging AI.
+        files = data.get("files", {})
 
-PROJECT PLAN:
-{fix_prompt['plan']}
+        # Write files into workspace
+        for path, content in files.items():
 
-ERRORS:
-{fix_prompt['errors']}
+            full_path = os.path.join("workspace", path)
 
-PROJECT ANALYSIS:
-{fix_prompt['analysis']}
+            os.makedirs(
+                os.path.dirname(full_path),
+                exist_ok=True
+            )
 
-Fix the project.
+            self.tools.write_file(path, content)
 
-Return ONLY valid JSON:
+        # Create next task (self-driving behavior)
+        next_task = data.get("next_task")
 
-{{
-  "files": {{
-    "path/to/file.py": "corrected code"
-  }}
-}}
-"""
+        if next_task:
+            self.memory.update_knowledge(
+                "default",
+                "next_task",
+                next_task
+            )
 
-        output = self.llm.generate(prompt)
-
-        try:
-            data = json.loads(output)
-
-            for path, code in data["files"].items():
-                full_path = os.path.join(workspace, path)
-
-                os.makedirs(os.path.dirname(full_path) or workspace, exist_ok=True)
-
-                with open(full_path, "w", encoding="utf-8") as f:
-                    f.write(code)
-
-            return data
-
-        except Exception as e:
-            return {
-                "error": f"Failed to fix project: {e}",
-                "raw_output": output
-            }
+        return {
+            "files_created": list(files.keys()),
+            "next_task": next_task
+        }
