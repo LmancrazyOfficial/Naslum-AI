@@ -1,26 +1,36 @@
+from agents.base_agent import BaseAgent
+from core.task import Task
 import subprocess
-import tempfile
 import os
 
-class TesterAgent:
-    def run_code(self, code_files):
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
-                file_path = os.path.join(tmp, "main.py")
 
-                with open(file_path, "w") as f:
-                    f.write(code_files["main.py"])
+class TesterAgent(BaseAgent):
+    def __init__(self, name, llm, tools, memory):
+        super().__init__(name, llm, tools, memory)
 
-                result = subprocess.run(
-                    ["python", file_path],
-                    capture_output=True,
-                    text=True
-                )
+    def can_handle(self, task: Task):
+        return task.task_type == "test"
 
-                return {
-                    "stdout": result.stdout,
-                    "stderr": result.stderr
-                }
+    def execute(self, task: Task):
 
-        except Exception as e:
-            return {"error": str(e)}
+        command = task.data.get("command")
+
+        if command is None:
+            command = "python main.py"
+
+        result = self.tools.run_command(command)
+
+        success = result["returncode"] == 0
+
+        report = {
+            "success": success,
+            "stdout": result["stdout"],
+            "stderr": result["stderr"]
+        }
+
+        self.memory.add_knowledge(
+            "last_test",
+            report
+        )
+
+        return report
