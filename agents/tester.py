@@ -1,15 +1,13 @@
-import os
-
 from agents.base_agent import BaseAgent
 from core.task import Task
-from core.sandbox import Sandbox
+from core.tool_executor import ToolExecutor
 
 
 class TesterAgent(BaseAgent):
 
     def __init__(self, name, llm, tools, memory):
         super().__init__(name, llm, tools, memory)
-        self.sandbox = Sandbox()
+        self.executor = ToolExecutor()
 
     def can_handle(self, task: Task):
         return task.task_type == "test"
@@ -18,8 +16,8 @@ class TesterAgent(BaseAgent):
 
         project = task.data.get("project")
 
-        # Try running main entry point
-        result = self.sandbox.run_python_file("main.py")
+        # Try running main entry
+        result = self.executor.run_command("python main.py")
 
         test_result = {
             "success": result["success"],
@@ -27,7 +25,6 @@ class TesterAgent(BaseAgent):
             "error": result["error"]
         }
 
-        # Store real test result in memory
         self.memory.update_knowledge(
             project,
             "last_test",
@@ -37,7 +34,7 @@ class TesterAgent(BaseAgent):
         self.memory.append_history(
             project,
             {
-                "event": "test_run",
+                "event": "real_test_execution",
                 "success": result["success"]
             }
         )
