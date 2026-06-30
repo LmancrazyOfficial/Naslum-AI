@@ -3,6 +3,7 @@ from core.task import Task
 
 
 class PlannerAgent(BaseAgent):
+
     def __init__(self, name, llm, tools, memory):
         super().__init__(name, llm, tools, memory)
 
@@ -11,34 +12,45 @@ class PlannerAgent(BaseAgent):
 
     def execute(self, task: Task):
 
-        request = task.data["request"]
+        request = task.data.get("request", "")
 
         prompt = f"""
-You are an expert software architect.
+You are a senior software architect.
 
-Break this request into a development plan.
+Break this request into a structured software development plan.
 
-User Request:
+USER REQUEST:
 {request}
 
-Return ONLY valid JSON.
-
-Format:
+Return ONLY valid JSON in this format:
 
 {{
-    "project_name": "",
-    "description": "",
-    "steps": [],
-    "files": [],
-    "languages": [],
-    "dependencies": []
+  "project_name": "string",
+  "overview": "string",
+  "architecture": [
+    "component 1",
+    "component 2"
+  ],
+  "task_flow": [
+    "plan",
+    "code",
+    "test"
+  ],
+  "files_to_create": [
+    "file1.py",
+    "file2.py"
+  ],
+  "notes": [
+    "important constraints"
+  ]
 }}
 """
 
         response = self.llm.generate(prompt)
 
-        # Save the latest generated plan
-        self.memory.add_knowledge(
+        # Store in memory for later agents
+        self.memory.update_knowledge(
+            "default",
             "last_plan",
             response
         )
