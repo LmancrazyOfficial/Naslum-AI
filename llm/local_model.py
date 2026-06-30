@@ -1,15 +1,15 @@
-from .base import BaseLLM
+import requests
 
-class LocalModel(BaseLLM):
-    def generate(self, prompt: str) -> str:
-        return f"""
-You are an expert software engineer.
+class LocalLLM:
 
-Task:
-{prompt}
+    def __init__(self, endpoint="http://localhost:11434/api/generate"):
+        self.endpoint = endpoint
 
-Return:
-- architecture
-- file structure
-- code
-"""
+    def generate(self, prompt: str):
+        response = requests.post(self.endpoint, json={
+            "model": "llama3",
+            "prompt": prompt,
+            "stream": False
+        })
+
+        return response.json()["response"]
