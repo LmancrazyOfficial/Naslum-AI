@@ -1,38 +1,60 @@
+from core.goal_decomposer import GoalDecomposer
+
+
 class ExecutionEngine:
 
     def __init__(self, orchestrator):
+
         self.orchestrator = orchestrator
+        self.decomposer = GoalDecomposer(orchestrator.llm)
+
         self.max_retries = 2
+
+    # -----------------------------
+    # ENTRY
+    # -----------------------------
 
     def execute_project(self, request, project):
 
-        # -------------------------
-        # STEP 1: PLAN
-        # -------------------------
+        # -----------------------------
+        # 0. GOAL DECOMPOSITION (NEW)
+        # -----------------------------
+        structure = self.decomposer.decompose(request)
+
+        self.orchestrator.memory.update_knowledge(
+            project,
+            "goal_structure",
+            structure
+        )
+
+        # -----------------------------
+        # 1. PLAN
+        # -----------------------------
         self.orchestrator.submit_task(
             "plan",
             {
                 "request": request,
-                "project": project
+                "project": project,
+                "structure": structure
             }
         )
         self.orchestrator.process_tasks()
 
-        # -------------------------
-        # STEP 2: CODE (initial build)
-        # -------------------------
+        # -----------------------------
+        # 2. CODE
+        # -----------------------------
         self.orchestrator.submit_task(
             "code",
             {
                 "project": project,
-                "mode": "initial"
+                "structure": structure
             }
         )
         self.orchestrator.process_tasks()
 
-        # -------------------------
-        # STEP 3: TEST + FIX LOOP
-        # -------------------------
+        # -----------------------------
+        # 3. TEST + FIX LOOP
+        # -----------------------------
         retries = 0
         success = False
 
@@ -56,13 +78,13 @@ class ExecutionEngine:
                 success = True
                 break
 
-            # FIX STEP
             self.orchestrator.submit_task(
                 "code",
                 {
                     "project": project,
                     "mode": "fix",
-                    "errors": test_result
+                    "errors": test_result,
+                    "structure": structure
                 }
             )
 
@@ -70,20 +92,20 @@ class ExecutionEngine:
 
             retries += 1
 
-        # -------------------------
-        # FINAL ANALYSIS
-        # -------------------------
+        # -----------------------------
+        # 4. ANALYZE
+        # -----------------------------
         self.orchestrator.submit_task(
             "analyze",
             {
-                "project": project
+                "project": project,
+                "structure": structure
             }
         )
-
         self.orchestrator.process_tasks()
 
         return {
             "project": project,
             "success": success,
-            "retries": retries
+            "structure": structure
         }
