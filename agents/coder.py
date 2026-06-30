@@ -1,17 +1,38 @@
+import os
+import json
+
 class CoderAgent:
+
     def __init__(self, llm):
         self.llm = llm
 
-    def generate_code(self, plan):
-        prompt = f"""
-You are a senior software engineer.
+    def generate_project(self, plan, workspace):
 
-Based on this plan:
+        prompt = f"""
+You are a senior software architect.
+
+Create a FULL multi-file project.
+
+PLAN:
 {plan}
 
-Generate a complete working Python project.
-Return as file map:
-- filename: code
+Return STRICT JSON:
+{{
+  "files": {{
+    "path/to/file": "code"
+  }}
+}}
 """
 
-        return self.llm.generate(prompt)
+        output = self.llm.generate(prompt)
+
+        data = json.loads(output)
+
+        for path, code in data["files"].items():
+            full_path = os.path.join(workspace, path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+            with open(full_path, "w") as f:
+                f.write(code)
+
+        return data
