@@ -18,7 +18,7 @@ class MemoryManager:
             self._write_json(self.settings_path, {})
 
     # -----------------------------
-    # Helpers
+    # helpers
     # -----------------------------
 
     def _write_json(self, path, data):
@@ -31,11 +31,11 @@ class MemoryManager:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def _project_path(self, project_name):
-        return os.path.join(self.projects_root, project_name)
+    def _project_path(self, project):
+        return os.path.join(self.projects_root, project)
 
     # -----------------------------
-    # Project lifecycle
+    # project setup
     # -----------------------------
 
     def create_project(self, name):
@@ -52,18 +52,21 @@ class MemoryManager:
             "plan.json": {},
             "analysis.json": {},
             "history.json": [],
-            "knowledge.json": {}
+            "knowledge.json": {},
+            "patterns.json": []   # NEW
         }
 
         for file, data in structure.items():
+
             full = os.path.join(path, file)
+
             if not os.path.exists(full):
                 self._write_json(full, data)
 
         return path
 
     # -----------------------------
-    # Plan
+    # plans
     # -----------------------------
 
     def save_plan(self, project, plan):
@@ -85,29 +88,7 @@ class MemoryManager:
         return self._read_json(path)
 
     # -----------------------------
-    # Analysis
-    # -----------------------------
-
-    def save_analysis(self, project, analysis):
-
-        path = os.path.join(
-            self._project_path(project),
-            "analysis.json"
-        )
-
-        self._write_json(path, analysis)
-
-    def load_analysis(self, project):
-
-        path = os.path.join(
-            self._project_path(project),
-            "analysis.json"
-        )
-
-        return self._read_json(path)
-
-    # -----------------------------
-    # Knowledge store
+    # knowledge
     # -----------------------------
 
     def update_knowledge(self, project, key, value):
@@ -133,7 +114,7 @@ class MemoryManager:
         return data.get(key)
 
     # -----------------------------
-    # History tracking
+    # history
     # -----------------------------
 
     def append_history(self, project, event):
@@ -151,3 +132,36 @@ class MemoryManager:
         })
 
         self._write_json(path, history)
+
+    # -----------------------------
+    # learning layer (NEW)
+    # -----------------------------
+
+    def store_pattern(self, project, pattern):
+
+        """
+        Store successful solutions or reusable structures.
+        """
+
+        path = os.path.join(
+            self._project_path(project),
+            "patterns.json"
+        )
+
+        patterns = self._read_json(path)
+
+        patterns.append({
+            "time": datetime.now().isoformat(),
+            "pattern": pattern
+        })
+
+        self._write_json(path, patterns)
+
+    def get_patterns(self, project):
+
+        path = os.path.join(
+            self._project_path(project),
+            "patterns.json"
+        )
+
+        return self._read_json(path)
