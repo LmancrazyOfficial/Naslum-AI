@@ -1,8 +1,10 @@
-from core.agent_registry import AgentRegistry
 from core.task_queue import TaskQueue
 from core.task import Task
+from core.agent_registry import AgentRegistry
 
+from core.execution_engine import ExecutionEngine
 from core.tool_manager import ToolManager
+
 from memory.memory_manager import MemoryManager
 
 from llm.local_model import LocalModel
@@ -14,6 +16,7 @@ from agents.analyzer import AnalyzerAgent
 
 
 class Orchestrator:
+
     def __init__(self):
 
         # Core systems
@@ -25,49 +28,39 @@ class Orchestrator:
         self.queue = TaskQueue()
         self.registry = AgentRegistry()
 
+        # Execution engine (high-level flow controller)
+        self.engine = ExecutionEngine(self)
+
         # Register agents
+        self._register_agents()
+
+    def _register_agents(self):
+
         self.registry.register(
-            PlannerAgent(
-                "Planner",
-                self.llm,
-                self.tools,
-                self.memory
-            )
+            PlannerAgent("Planner", self.llm, self.tools, self.memory)
         )
 
         self.registry.register(
-            CoderAgent(
-                "Coder",
-                self.llm,
-                self.tools,
-                self.memory
-            )
+            CoderAgent("Coder", self.llm, self.tools, self.memory)
         )
 
         self.registry.register(
-            TesterAgent(
-                "Tester",
-                self.llm,
-                self.tools,
-                self.memory
-            )
+            TesterAgent("Tester", self.llm, self.tools, self.memory)
         )
 
         self.registry.register(
-            AnalyzerAgent(
-                "Analyzer",
-                self.llm,
-                self.tools,
-                self.memory
-            )
+            AnalyzerAgent("Analyzer", self.llm, self.tools, self.memory)
         )
+
+    # -----------------------------
+    # Task API
+    # -----------------------------
 
     def submit_task(self, task_type, data):
         task = Task(
             task_type=task_type,
             data=data
         )
-
         self.queue.add_task(task)
 
     def process_tasks(self):
@@ -79,13 +72,12 @@ class Orchestrator:
             agent = self.registry.find_agent(task)
 
             if agent is None:
-                print(f"No agent found for task '{task.task_type}'")
+                print(f"[WARN] No agent for task: {task.task_type}")
                 continue
 
-            print(f"[{agent.name}] Processing {task.task_type}")
+            print(f"[{agent.name}] -> {task.task_type}")
 
             try:
-
                 result = agent.execute(task)
 
                 task.status = "completed"
@@ -96,21 +88,25 @@ class Orchestrator:
                 task.status = "failed"
                 task.error = str(e)
 
-                print(f"Task failed: {e}")
+                print(f"[ERROR] {e}")
+
+    # -----------------------------
+    # Entry point
+    # -----------------------------
 
     def run(self, user_request):
 
-        print("\n========== AI FACTORY ==========")
+        print("\n" + "=" * 60)
+        print("AI FACTORY RUNNING")
+        print("=" * 60)
 
-        self.memory.add_task(user_request)
-
-        self.submit_task(
-            "plan",
-            {
-                "request": user_request
-            }
+        # Store request in memory
+        self.memory.append_history(
+            "default",
+            {"request": user_request}
         )
 
-        self.process_tasks()
+        # Execute full pipeline
+        self.engine.execute_project(user_request)
 
-        print("\n========== DONE ==========")
+        print("\nDONE")
