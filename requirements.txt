@@ -1,0 +1,4 @@
+# Core runtime dependencies only
+
+openai
+requests
