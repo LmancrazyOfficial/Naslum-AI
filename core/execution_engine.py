@@ -1,4 +1,5 @@
 from core.goal_decomposer import GoalDecomposer
+from core.self_improver import SelfImprover
 
 
 class ExecutionEngine:
@@ -7,17 +8,21 @@ class ExecutionEngine:
 
         self.orchestrator = orchestrator
         self.decomposer = GoalDecomposer(orchestrator.llm)
+        self.improver = SelfImprover(
+            orchestrator.llm,
+            orchestrator.memory
+        )
 
         self.max_retries = 2
 
     # -----------------------------
-    # ENTRY
+    # MAIN ENTRY
     # -----------------------------
 
     def execute_project(self, request, project):
 
         # -----------------------------
-        # 0. GOAL DECOMPOSITION (NEW)
+        # 0. GOAL DECOMPOSITION
         # -----------------------------
         structure = self.decomposer.decompose(request)
 
@@ -62,11 +67,8 @@ class ExecutionEngine:
 
             self.orchestrator.submit_task(
                 "test",
-                {
-                    "project": project
-                }
+                {"project": project}
             )
-
             self.orchestrator.process_tasks()
 
             test_result = self.orchestrator.memory.get_knowledge(
@@ -87,7 +89,6 @@ class ExecutionEngine:
                     "structure": structure
                 }
             )
-
             self.orchestrator.process_tasks()
 
             retries += 1
@@ -104,8 +105,25 @@ class ExecutionEngine:
         )
         self.orchestrator.process_tasks()
 
+        # -----------------------------
+        # 5. SELF IMPROVEMENT LOOP (NEW)
+        # -----------------------------
+        insights = self.improver.analyze_project(project)
+
+        self.orchestrator.memory.update_knowledge(
+            project,
+            "insights",
+            insights
+        )
+
+        # Store global learning signal
+        self.orchestrator.memory.global_memory.store_insight(
+            insights
+        )
+
         return {
             "project": project,
             "success": success,
-            "structure": structure
+            "structure": structure,
+            "insights": insights
         }
