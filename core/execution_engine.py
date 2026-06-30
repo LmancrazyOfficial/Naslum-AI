@@ -1,5 +1,6 @@
 from core.goal_decomposer import GoalDecomposer
 from core.self_improver import SelfImprover
+from core.meta_controller import MetaController
 
 
 class ExecutionEngine:
@@ -7,123 +8,16 @@ class ExecutionEngine:
     def __init__(self, orchestrator):
 
         self.orchestrator = orchestrator
+
         self.decomposer = GoalDecomposer(orchestrator.llm)
-        self.improver = SelfImprover(
-            orchestrator.llm,
-            orchestrator.memory
-        )
+        self.improver = SelfImprover(orchestrator.llm, orchestrator.memory)
+        self.meta = MetaController(orchestrator.llm, orchestrator.memory)
 
         self.max_retries = 2
-
-    # -----------------------------
-    # MAIN ENTRY
-    # -----------------------------
 
     def execute_project(self, request, project):
 
         # -----------------------------
-        # 0. GOAL DECOMPOSITION
+        # 0. META STRATEGY EVOLUTION (NEW CORE LAYER)
         # -----------------------------
-        structure = self.decomposer.decompose(request)
-
-        self.orchestrator.memory.update_knowledge(
-            project,
-            "goal_structure",
-            structure
-        )
-
-        # -----------------------------
-        # 1. PLAN
-        # -----------------------------
-        self.orchestrator.submit_task(
-            "plan",
-            {
-                "request": request,
-                "project": project,
-                "structure": structure
-            }
-        )
-        self.orchestrator.process_tasks()
-
-        # -----------------------------
-        # 2. CODE
-        # -----------------------------
-        self.orchestrator.submit_task(
-            "code",
-            {
-                "project": project,
-                "structure": structure
-            }
-        )
-        self.orchestrator.process_tasks()
-
-        # -----------------------------
-        # 3. TEST + FIX LOOP
-        # -----------------------------
-        retries = 0
-        success = False
-
-        while retries <= self.max_retries:
-
-            self.orchestrator.submit_task(
-                "test",
-                {"project": project}
-            )
-            self.orchestrator.process_tasks()
-
-            test_result = self.orchestrator.memory.get_knowledge(
-                project,
-                "last_test"
-            )
-
-            if test_result and test_result.get("success"):
-                success = True
-                break
-
-            self.orchestrator.submit_task(
-                "code",
-                {
-                    "project": project,
-                    "mode": "fix",
-                    "errors": test_result,
-                    "structure": structure
-                }
-            )
-            self.orchestrator.process_tasks()
-
-            retries += 1
-
-        # -----------------------------
-        # 4. ANALYZE
-        # -----------------------------
-        self.orchestrator.submit_task(
-            "analyze",
-            {
-                "project": project,
-                "structure": structure
-            }
-        )
-        self.orchestrator.process_tasks()
-
-        # -----------------------------
-        # 5. SELF IMPROVEMENT LOOP (NEW)
-        # -----------------------------
-        insights = self.improver.analyze_project(project)
-
-        self.orchestrator.memory.update_knowledge(
-            project,
-            "insights",
-            insights
-        )
-
-        # Store global learning signal
-        self.orchestrator.memory.global_memory.store_insight(
-            insights
-        )
-
-        return {
-            "project": project,
-            "success": success,
-            "structure": structure,
-            "insights": insights
-        }
+        strategy_update =
