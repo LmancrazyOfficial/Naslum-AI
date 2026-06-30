@@ -20,15 +20,45 @@ class CoderAgent(BaseAgent):
             "last_plan"
         )
 
-        prompt = f"""
-You are a senior software engineer.
+        fix_mode = task.data.get("fix_mode", False)
+        errors = task.data.get("errors", None)
 
-You must generate a COMPLETE working multi-file project.
+        if fix_mode:
+            prompt = f"""
+You are an expert debugging engineer.
+
+You are fixing an existing broken project.
 
 ARCHITECTURE PLAN:
 {plan}
 
-Return ONLY valid JSON in this format:
+ERRORS FROM TEST RUN:
+{json.dumps(errors, indent=2)}
+
+TASK:
+- Identify the root cause
+- Fix ONLY the broken parts
+- Do NOT rewrite the entire project unnecessarily
+
+Return ONLY valid JSON:
+
+{{
+  "files": {{
+    "path/to/file.py": "fixed code"
+  }},
+  "next_task": "test"
+}}
+"""
+        else:
+            prompt = f"""
+You are a senior software engineer.
+
+Generate a COMPLETE working multi-file project.
+
+ARCHITECTURE PLAN:
+{plan}
+
+Return ONLY valid JSON:
 
 {{
   "files": {{
@@ -51,7 +81,7 @@ Return ONLY valid JSON in this format:
 
         files = data.get("files", {})
 
-        # Write files into workspace
+        # Write only changed files
         for path, content in files.items():
 
             full_path = os.path.join("workspace", path)
@@ -63,7 +93,7 @@ Return ONLY valid JSON in this format:
 
             self.tools.write_file(path, content)
 
-        # Create next task (self-driving behavior)
+        # Store next step
         next_task = data.get("next_task")
 
         if next_task:
@@ -74,6 +104,7 @@ Return ONLY valid JSON in this format:
             )
 
         return {
-            "files_created": list(files.keys()),
+            "fix_mode": fix_mode,
+            "files_updated": list(files.keys()),
             "next_task": next_task
         }
