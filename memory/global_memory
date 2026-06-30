@@ -1,0 +1,93 @@
+import os
+import json
+from datetime import datetime
+
+
+class GlobalMemory:
+
+    def __init__(self):
+
+        self.root = "memory"
+        self.global_path = os.path.join(self.root, "global.json")
+
+        if not os.path.exists(self.global_path):
+            self._write_json(self.global_path, {
+                "patterns": [],
+                "failures": [],
+                "insights": [],
+                "created": datetime.now().isoformat()
+            })
+
+    # -----------------------------
+    # helpers
+    # -----------------------------
+
+    def _write_json(self, path, data):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+
+    def _read_json(self, path):
+        if not os.path.exists(path):
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    # -----------------------------
+    # patterns (what works)
+    # -----------------------------
+
+    def store_pattern(self, pattern):
+
+        data = self._read_json(self.global_path)
+
+        data["patterns"].append({
+            "time": datetime.now().isoformat(),
+            "pattern": pattern
+        })
+
+        self._write_json(self.global_path, data)
+
+    def get_patterns(self):
+
+        data = self._read_json(self.global_path)
+        return data.get("patterns", [])
+
+    # -----------------------------
+    # failures (what breaks)
+    # -----------------------------
+
+    def store_failure(self, failure):
+
+        data = self._read_json(self.global_path)
+
+        data["failures"].append({
+            "time": datetime.now().isoformat(),
+            "failure": failure
+        })
+
+        self._write_json(self.global_path, data)
+
+    def get_failures(self):
+
+        data = self._read_json(self.global_path)
+        return data.get("failures", [])
+
+    # -----------------------------
+    # insights (learned rules)
+    # -----------------------------
+
+    def store_insight(self, insight):
+
+        data = self._read_json(self.global_path)
+
+        data["insights"].append({
+            "time": datetime.now().isoformat(),
+            "insight": insight
+        })
+
+        self._write_json(self.global_path, data)
+
+    def get_insights(self):
+
+        data = self._read_json(self.global_path)
+        return data.get("insights", [])
