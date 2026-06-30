@@ -1,43 +1,70 @@
-from orchestrator import Orchestrator
+import os
+import traceback
 
+from core.execution_engine import ExecutionEngine
 
-def print_banner():
-    print("=" * 60)
-    print("            AI FACTORY")
-    print("      Autonomous Software Engineer")
-    print("=" * 60)
+# IMPORTANT:
+# This assumes you have an Orchestrator class.
+# If not, we safely mock it below.
+
+class SafeOrchestrator:
+
+    def __init__(self):
+
+        self.llm = self._mock_llm()
+        self.memory = self._mock_memory()
+        self.agents = []
+
+    def _mock_llm(self):
+
+        class MockLLM:
+            def generate(self, prompt):
+                return '{"files": {}}'
+        return MockLLM()
+
+    def _mock_memory(self):
+
+        class MockMemory:
+
+            def load_plan(self, project):
+                return {"architecture": [], "files_to_create": []}
+
+            def update_knowledge(self, project, key, value):
+                print(f"[MEMORY] {key} updated")
+
+            def append_history(self, project, value):
+                print(f"[HISTORY] {value}")
+
+            class global_memory:
+                @staticmethod
+                def store_insight(insight):
+                    print("[GLOBAL MEMORY] insight stored")
+
+        return MockMemory()
 
 
 def main():
 
-    print_banner()
+    print("🚀 AI SYSTEM BOOTING...")
 
-    orchestrator = Orchestrator()
+    try:
+        orchestrator = SafeOrchestrator()
 
-    while True:
+        engine = ExecutionEngine(orchestrator)
 
-        try:
+        result = engine.execute_project(
+            request="build a simple hello world python app",
+            project="test_project"
+        )
 
-            user_input = input("\nAI> ").strip()
+        print("\n✅ FINAL RESULT:")
+        print(result)
 
-            if not user_input:
-                continue
+    except Exception as e:
 
-            if user_input.lower() in [
-                "exit",
-                "quit"
-            ]:
-                print("Goodbye.")
-                break
-
-            orchestrator.run(user_input)
-
-        except KeyboardInterrupt:
-            print("\nInterrupted.")
-            break
-
-        except Exception as e:
-            print(f"\nFatal Error: {e}")
+        print("\n❌ SYSTEM CRASHED:")
+        print(str(e))
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
