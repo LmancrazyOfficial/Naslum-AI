@@ -19,19 +19,15 @@ class Orchestrator:
 
     def __init__(self):
 
-        # Core systems
         self.llm = LocalModel()
         self.tools = ToolManager()
         self.memory = MemoryManager()
 
-        # Task system
         self.queue = TaskQueue()
         self.registry = AgentRegistry()
 
-        # Execution engine (high-level flow controller)
         self.engine = ExecutionEngine(self)
 
-        # Register agents
         self._register_agents()
 
     def _register_agents(self):
@@ -53,14 +49,16 @@ class Orchestrator:
         )
 
     # -----------------------------
-    # Task API
+    # Task system
     # -----------------------------
 
     def submit_task(self, task_type, data):
+
         task = Task(
             task_type=task_type,
             data=data
         )
+
         self.queue.add_task(task)
 
     def process_tasks(self):
@@ -72,7 +70,7 @@ class Orchestrator:
             agent = self.registry.find_agent(task)
 
             if agent is None:
-                print(f"[WARN] No agent for task: {task.task_type}")
+                print(f"[WARN] No agent for: {task.task_type}")
                 continue
 
             print(f"[{agent.name}] -> {task.task_type}")
@@ -100,13 +98,20 @@ class Orchestrator:
         print("AI FACTORY RUNNING")
         print("=" * 60)
 
-        # Store request in memory
+        # Create project name from request
+        project_name = "project_" + str(abs(hash(user_request)))[:8]
+
+        self.memory.create_project(project_name)
+
         self.memory.append_history(
-            "default",
+            project_name,
             {"request": user_request}
         )
 
-        # Execute full pipeline
-        self.engine.execute_project(user_request)
+        # Store project context in engine
+        self.engine.execute_project(
+            request=user_request,
+            project=project_name
+        )
 
         print("\nDONE")
