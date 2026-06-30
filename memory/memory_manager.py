@@ -2,6 +2,8 @@ import os
 import json
 from datetime import datetime
 
+from memory.global_memory import GlobalMemory
+
 
 class MemoryManager:
 
@@ -12,10 +14,7 @@ class MemoryManager:
 
         os.makedirs(self.projects_root, exist_ok=True)
 
-        self.settings_path = os.path.join(self.root, "settings.json")
-
-        if not os.path.exists(self.settings_path):
-            self._write_json(self.settings_path, {})
+        self.global_memory = GlobalMemory()
 
     # -----------------------------
     # helpers
@@ -35,7 +34,7 @@ class MemoryManager:
         return os.path.join(self.projects_root, project)
 
     # -----------------------------
-    # project setup
+    # project lifecycle
     # -----------------------------
 
     def create_project(self, name):
@@ -44,19 +43,13 @@ class MemoryManager:
 
         os.makedirs(path, exist_ok=True)
 
-        structure = {
-            "metadata.json": {
-                "name": name,
-                "created": datetime.now().isoformat()
-            },
+        for file, data in {
+            "metadata.json": {"name": name},
             "plan.json": {},
-            "analysis.json": {},
             "history.json": [],
             "knowledge.json": {},
-            "patterns.json": []   # NEW
-        }
-
-        for file, data in structure.items():
+            "patterns.json": []
+        }.items():
 
             full = os.path.join(path, file)
 
@@ -64,28 +57,6 @@ class MemoryManager:
                 self._write_json(full, data)
 
         return path
-
-    # -----------------------------
-    # plans
-    # -----------------------------
-
-    def save_plan(self, project, plan):
-
-        path = os.path.join(
-            self._project_path(project),
-            "plan.json"
-        )
-
-        self._write_json(path, plan)
-
-    def load_plan(self, project):
-
-        path = os.path.join(
-            self._project_path(project),
-            "plan.json"
-        )
-
-        return self._read_json(path)
 
     # -----------------------------
     # knowledge
@@ -114,54 +85,14 @@ class MemoryManager:
         return data.get(key)
 
     # -----------------------------
-    # history
+    # global shortcuts
     # -----------------------------
 
-    def append_history(self, project, event):
+    def global_patterns(self):
+        return self.global_memory.get_patterns()
 
-        path = os.path.join(
-            self._project_path(project),
-            "history.json"
-        )
+    def global_failures(self):
+        return self.global_memory.get_failures()
 
-        history = self._read_json(path)
-
-        history.append({
-            "time": datetime.now().isoformat(),
-            "event": event
-        })
-
-        self._write_json(path, history)
-
-    # -----------------------------
-    # learning layer (NEW)
-    # -----------------------------
-
-    def store_pattern(self, project, pattern):
-
-        """
-        Store successful solutions or reusable structures.
-        """
-
-        path = os.path.join(
-            self._project_path(project),
-            "patterns.json"
-        )
-
-        patterns = self._read_json(path)
-
-        patterns.append({
-            "time": datetime.now().isoformat(),
-            "pattern": pattern
-        })
-
-        self._write_json(path, patterns)
-
-    def get_patterns(self, project):
-
-        path = os.path.join(
-            self._project_path(project),
-            "patterns.json"
-        )
-
-        return self._read_json(path)
+    def global_insights(self):
+        return self.global_memory.get_insights()
