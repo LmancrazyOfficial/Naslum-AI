@@ -8,84 +8,68 @@ class MemoryManager:
     def __init__(self):
 
         self.root = "memory"
+        self.projects_root = os.path.join(self.root, "projects")
 
-        self.projects = os.path.join(self.root, "projects")
+        os.makedirs(self.projects_root, exist_ok=True)
 
-        self.conversations = os.path.join(
-            self.root,
-            "conversations"
-        )
+        self.settings_path = os.path.join(self.root, "settings.json")
 
-        os.makedirs(self.projects, exist_ok=True)
-        os.makedirs(self.conversations, exist_ok=True)
+        if not os.path.exists(self.settings_path):
+            self._write_json(self.settings_path, {})
 
-        self.settings = os.path.join(
-            self.root,
-            "settings.json"
-        )
-
-        if not os.path.exists(self.settings):
-            self._write_json(
-                self.settings,
-                {}
-            )
+    # -----------------------------
+    # Helpers
+    # -----------------------------
 
     def _write_json(self, path, data):
-
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
     def _read_json(self, path):
-
         if not os.path.exists(path):
             return {}
-
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    def _project_path(self, project_name):
+        return os.path.join(self.projects_root, project_name)
+
+    # -----------------------------
+    # Project lifecycle
+    # -----------------------------
+
     def create_project(self, name):
 
-        project = os.path.join(
-            self.projects,
-            name
-        )
+        path = self._project_path(name)
 
-        os.makedirs(project, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
 
-        files = {
-
+        structure = {
             "metadata.json": {
-                "created": datetime.now().isoformat(),
-                "name": name
+                "name": name,
+                "created": datetime.now().isoformat()
             },
-
             "plan.json": {},
-
             "analysis.json": {},
-
             "history.json": [],
-
             "knowledge.json": {}
-
         }
 
-        for filename, data in files.items():
+        for file, data in structure.items():
+            full = os.path.join(path, file)
+            if not os.path.exists(full):
+                self._write_json(full, data)
 
-            path = os.path.join(
-                project,
-                filename
-            )
+        return path
 
-            if not os.path.exists(path):
-                self._write_json(path, data)
-
-        return project
+    # -----------------------------
+    # Plan
+    # -----------------------------
 
     def save_plan(self, project, plan):
 
         path = os.path.join(
-            self.projects,
-            project,
+            self._project_path(project),
             "plan.json"
         )
 
@@ -94,18 +78,20 @@ class MemoryManager:
     def load_plan(self, project):
 
         path = os.path.join(
-            self.projects,
-            project,
+            self._project_path(project),
             "plan.json"
         )
 
         return self._read_json(path)
 
+    # -----------------------------
+    # Analysis
+    # -----------------------------
+
     def save_analysis(self, project, analysis):
 
         path = os.path.join(
-            self.projects,
-            project,
+            self._project_path(project),
             "analysis.json"
         )
 
@@ -114,64 +100,54 @@ class MemoryManager:
     def load_analysis(self, project):
 
         path = os.path.join(
-            self.projects,
-            project,
+            self._project_path(project),
             "analysis.json"
         )
 
         return self._read_json(path)
 
+    # -----------------------------
+    # Knowledge store
+    # -----------------------------
+
+    def update_knowledge(self, project, key, value):
+
+        path = os.path.join(
+            self._project_path(project),
+            "knowledge.json"
+        )
+
+        data = self._read_json(path)
+        data[key] = value
+
+        self._write_json(path, data)
+
+    def get_knowledge(self, project, key):
+
+        path = os.path.join(
+            self._project_path(project),
+            "knowledge.json"
+        )
+
+        data = self._read_json(path)
+        return data.get(key)
+
+    # -----------------------------
+    # History tracking
+    # -----------------------------
+
     def append_history(self, project, event):
 
         path = os.path.join(
-            self.projects,
-            project,
+            self._project_path(project),
             "history.json"
         )
 
         history = self._read_json(path)
 
         history.append({
-
             "time": datetime.now().isoformat(),
-
             "event": event
-
         })
 
         self._write_json(path, history)
-
-    def update_knowledge(
-        self,
-        project,
-        key,
-        value
-    ):
-
-        path = os.path.join(
-            self.projects,
-            project,
-            "knowledge.json"
-        )
-
-        knowledge = self._read_json(path)
-
-        knowledge[key] = value
-
-        self._write_json(path, knowledge)
-
-    def get_knowledge(
-        self,
-        project,
-        key
-    ):
-
-        path = os.path.join(
-            self.projects,
-            project,
-            "knowledge.json"
-        )
-
-        knowledge = self._read_json(path)
-
-        return knowledge.get(key)
