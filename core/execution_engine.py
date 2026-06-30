@@ -4,38 +4,51 @@ class ExecutionEngine:
         self.orchestrator = orchestrator
         self.max_retries = 2
 
-    def execute_project(self, request):
+    def execute_project(self, request, project):
 
-        # 1. PLAN
+        # -------------------------
+        # STEP 1: PLAN
+        # -------------------------
         self.orchestrator.submit_task(
             "plan",
-            {"request": request}
+            {
+                "request": request,
+                "project": project
+            }
         )
         self.orchestrator.process_tasks()
 
-        # 2. CODE
+        # -------------------------
+        # STEP 2: CODE (initial build)
+        # -------------------------
         self.orchestrator.submit_task(
             "code",
-            {}
+            {
+                "project": project,
+                "mode": "initial"
+            }
         )
         self.orchestrator.process_tasks()
 
-        # 3. TEST + RETRY LOOP
+        # -------------------------
+        # STEP 3: TEST + FIX LOOP
+        # -------------------------
         retries = 0
         success = False
 
-        while retries <= self.max_retries and not success:
+        while retries <= self.max_retries:
 
             self.orchestrator.submit_task(
                 "test",
-                {}
+                {
+                    "project": project
+                }
             )
 
             self.orchestrator.process_tasks()
 
-            # Get latest test result from memory
             test_result = self.orchestrator.memory.get_knowledge(
-                "default",
+                project,
                 "last_test"
             )
 
@@ -43,11 +56,12 @@ class ExecutionEngine:
                 success = True
                 break
 
-            # If failed → FIX
+            # FIX STEP
             self.orchestrator.submit_task(
                 "code",
                 {
-                    "fix_mode": True,
+                    "project": project,
+                    "mode": "fix",
                     "errors": test_result
                 }
             )
@@ -56,7 +70,20 @@ class ExecutionEngine:
 
             retries += 1
 
+        # -------------------------
+        # FINAL ANALYSIS
+        # -------------------------
+        self.orchestrator.submit_task(
+            "analyze",
+            {
+                "project": project
+            }
+        )
+
+        self.orchestrator.process_tasks()
+
         return {
+            "project": project,
             "success": success,
             "retries": retries
-          }
+        }
