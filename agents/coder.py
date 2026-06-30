@@ -4,6 +4,7 @@ import os
 from agents.base_agent import BaseAgent
 from core.task import Task
 from core.project_indexer import ProjectIndexer
+from core.code_memory import CodeMemory
 from core.agent_debate import AgentDebateSystem
 
 
@@ -11,7 +12,9 @@ class CoderAgent(BaseAgent):
 
     def __init__(self, name, llm, tools, memory):
         super().__init__(name, llm, tools, memory)
+
         self.indexer = ProjectIndexer()
+        self.code_memory = CodeMemory()
         self.debate = AgentDebateSystem(llm)
 
     def can_handle(self, task: Task):
@@ -22,25 +25,61 @@ class CoderAgent(BaseAgent):
         project = task.data.get("project")
         fix_mode = task.data.get("mode") == "fix"
         errors = task.data.get("errors")
+        structure = task.data.get("structure")
 
-        project_path = "workspace"
-        index = self.indexer.build_index(project_path)
+        # -----------------------------
+        # Build structural context
+        # -----------------------------
+        index = self.indexer.build_index("workspace")
 
         plan = self.memory.load_plan(project)
 
+        # -----------------------------
+        # SMART RETRIEVAL (RAG LAYER)
+        # -----------------------------
+        keywords = self._extract_keywords(plan, errors)
+
+        relevant_files = self.code_memory.retrieve_relevant_files(keywords)
+
+        retrieved_context = json.dumps(relevant_files, indent=2)
+
+        # -----------------------------
+        # MULTI-MODE REASONING INPUT
+        # -----------------------------
         base_prompt = f"""
+You are an expert software engineer working in a real codebase.
+
 PROJECT PLAN:
 {json.dumps(plan, indent=2)}
 
-PROJECT STRUCTURE:
+STRUCTURE:
 {json.dumps(index, indent=2)}
 
+RETRIEVED CONTEXT (most relevant existing code):
+{retrieved_context}
+
+ERRORS:
+{json.dumps(errors, indent=2)}
+
 FIX MODE: {fix_mode}
-ERRORS: {json.dumps(errors, indent=2)}
+
+RULES:
+- Use existing code when possible
+- Avoid duplication
+- Modify only necessary parts
+- Respect architecture dependencies
+
+Return ONLY valid JSON:
+{{
+  "files": {{
+    "path/to/file.py": "code"
+  }},
+  "next_task": "test"
+}}
 """
 
         # -----------------------------
-        # MULTI-AGENT DEBATE STEP
+        # DEBATE SYSTEM (reasoning upgrade)
         # -----------------------------
         response = self.debate.run_debate(base_prompt)
 
@@ -54,6 +93,9 @@ ERRORS: {json.dumps(errors, indent=2)}
 
         files = data.get("files", {})
 
+        # -----------------------------
+        # WRITE FILES
+        # -----------------------------
         for path, content in files.items():
 
             full_path = os.path.join("workspace", path)
@@ -62,6 +104,9 @@ ERRORS: {json.dumps(errors, indent=2)}
 
             self.tools.write_file(path, content)
 
+        # -----------------------------
+        # MEMORY UPDATE
+        # -----------------------------
         self.memory.update_knowledge(
             project,
             "last_code",
@@ -72,3 +117,22 @@ ERRORS: {json.dumps(errors, indent=2)}
             "project": project,
             "files_updated": list(files.keys())
         }
+
+    # -----------------------------
+    # KEYWORD EXTRACTION (simple but effective)
+    # -----------------------------
+    def _extract_keywords(self, plan, errors):
+
+        keywords = []
+
+        if isinstance(plan, dict):
+            keywords += plan.get("architecture", [])
+            keywords += plan.get("files_to_create", [])
+
+        if errors:
+            if isinstance(errors, dict):
+                keywords += list(errors.keys())
+                keywords += str(errors).split()
+
+        # cleanup
+        return list(set([str(k).lower() for k in keywords if k]))
