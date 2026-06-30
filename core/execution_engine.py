@@ -3,6 +3,7 @@ from core.self_improver import SelfImprover
 from core.meta_controller import MetaController
 from core.mission_manager import MissionManager
 from core.swarm_coordinator import SwarmCoordinator
+from core.goal_generator import GoalGenerator
 
 
 class ExecutionEngine:
@@ -14,20 +15,39 @@ class ExecutionEngine:
         self.decomposer = GoalDecomposer(orchestrator.llm)
         self.improver = SelfImprover(orchestrator.llm, orchestrator.memory)
         self.meta = MetaController(orchestrator.llm, orchestrator.memory)
-        self.missions = MissionManager()
 
-        # 🧠 SWARM MODE ENABLED
+        self.missions = MissionManager()
+        self.goal_generator = GoalGenerator(orchestrator.llm, orchestrator.memory)
+
+        # Swarm system (multi-agent execution)
         self.swarm = SwarmCoordinator(orchestrator.agents)
 
         self.max_retries = 2
 
+    # -----------------------------
+    # MAIN ENTRY POINT
+    # -----------------------------
     def execute_project(self, request, project):
 
+        # -----------------------------
+        # 0. CREATE MISSION
+        # -----------------------------
         mission = self.missions.create_mission(request)
         mission_id = mission["id"]
 
         # -----------------------------
-        # 0. DECOMPOSE GOAL
+        # 1. META STRATEGY STEP (optional hook)
+        # -----------------------------
+        strategy_update = self.meta.evolve_strategy()
+
+        self.orchestrator.memory.update_knowledge(
+            project,
+            "strategy_update",
+            strategy_update
+        )
+
+        # -----------------------------
+        # 2. GOAL DECOMPOSITION
         # -----------------------------
         structure = self.decomposer.decompose(request)
 
@@ -37,8 +57,13 @@ class ExecutionEngine:
             structure
         )
 
+        self.missions.update_mission(
+            mission_id,
+            "Goal decomposed"
+        )
+
         # -----------------------------
-        # 1. BUILD TASK LIST FROM STRUCTURE
+        # 3. BUILD SWARM TASKS
         # -----------------------------
         tasks = []
 
@@ -51,7 +76,7 @@ class ExecutionEngine:
             })
 
         # -----------------------------
-        # 2. SWARM EXECUTION (PARALLELIZED CODING)
+        # 4. SWARM CODING EXECUTION
         # -----------------------------
         code_results = self.swarm.distribute(tasks)
 
@@ -61,27 +86,31 @@ class ExecutionEngine:
         )
 
         # -----------------------------
-        # 3. TESTING PHASE
+        # 5. TEST PHASE (SWARM)
         # -----------------------------
-        test_tasks = [{
-            "task_type": "test",
-            "project": project
-        }]
+        test_results = self.swarm.distribute([
+            {
+                "task_type": "test",
+                "project": project
+            }
+        ])
 
-        test_results = self.swarm.distribute(test_tasks)
-
-        success = any(r.get("success") for r in test_results)
-
-        # -----------------------------
-        # 4. ANALYSIS
-        # -----------------------------
-        self.swarm.distribute([{
-            "task_type": "analyze",
-            "project": project
-        }])
+        success = any(
+            r.get("success") for r in test_results if isinstance(r, dict)
+        )
 
         # -----------------------------
-        # 5. SELF IMPROVEMENT
+        # 6. ANALYSIS PHASE
+        # -----------------------------
+        self.swarm.distribute([
+            {
+                "task_type": "analyze",
+                "project": project
+            }
+        ])
+
+        # -----------------------------
+        # 7. SELF-IMPROVEMENT
         # -----------------------------
         insights = self.improver.analyze_project(project)
 
@@ -93,12 +122,37 @@ class ExecutionEngine:
 
         self.orchestrator.memory.global_memory.store_insight(insights)
 
+        # -----------------------------
+        # 8. MISSION COMPLETION
+        # -----------------------------
         self.missions.complete_mission(mission_id)
 
+        # -----------------------------
+        # 9. AUTONOMOUS GOAL GENERATION
+        # -----------------------------
+        new_goals = self.goal_generator.generate_goals()
+
+        if new_goals and "new_goals" in new_goals:
+
+            self.missions.add_auto_missions(new_goals["new_goals"])
+
+            self.orchestrator.memory.update_knowledge(
+                project,
+                "auto_generated_goals",
+                new_goals
+            )
+
+        # -----------------------------
+        # FINAL OUTPUT
+        # -----------------------------
         return {
             "project": project,
             "mission_id": mission_id,
             "success": success,
-            "swarm_results": code_results,
-            "insights": insights
+            "structure": structure,
+            "code_results": code_results,
+            "test_results": test_results,
+            "insights": insights,
+            "strategy_update": strategy_update,
+            "auto_goals": new_goals
         }
