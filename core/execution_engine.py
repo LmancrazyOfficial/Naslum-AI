@@ -2,6 +2,7 @@ from core.goal_decomposer import GoalDecomposer
 from core.self_improver import SelfImprover
 from core.meta_controller import MetaController
 from core.mission_manager import MissionManager
+from core.swarm_coordinator import SwarmCoordinator
 
 
 class ExecutionEngine:
@@ -15,16 +16,14 @@ class ExecutionEngine:
         self.meta = MetaController(orchestrator.llm, orchestrator.memory)
         self.missions = MissionManager()
 
-        self.max_retries = 2
+        # 🧠 SWARM MODE ENABLED
+        self.swarm = SwarmCoordinator(orchestrator.agents)
 
-    # -----------------------------
-    # ENTRY POINT (NOW MISSION-BASED)
-    # -----------------------------
+        self.max_retries = 2
 
     def execute_project(self, request, project):
 
         mission = self.missions.create_mission(request)
-
         mission_id = mission["id"]
 
         # -----------------------------
@@ -38,82 +37,48 @@ class ExecutionEngine:
             structure
         )
 
-        self.missions.update_mission(
-            mission_id,
-            "Goal decomposed"
-        )
-
         # -----------------------------
-        # 1. PLAN
+        # 1. BUILD TASK LIST FROM STRUCTURE
         # -----------------------------
-        self.orchestrator.submit_task("plan", {
-            "request": request,
-            "project": project,
-            "structure": structure
-        })
-        self.orchestrator.process_tasks()
+        tasks = []
 
-        self.missions.update_mission(mission_id, "Planning complete")
+        for module in structure.get("modules", []):
 
-        # -----------------------------
-        # 2. CODE
-        # -----------------------------
-        self.orchestrator.submit_task("code", {
-            "project": project,
-            "structure": structure
-        })
-        self.orchestrator.process_tasks()
-
-        self.missions.update_mission(mission_id, "Coding complete")
-
-        # -----------------------------
-        # 3. TEST + FIX LOOP
-        # -----------------------------
-        retries = 0
-        success = False
-
-        while retries <= self.max_retries:
-
-            self.orchestrator.submit_task("test", {"project": project})
-            self.orchestrator.process_tasks()
-
-            test_result = self.orchestrator.memory.get_knowledge(
-                project,
-                "last_test"
-            )
-
-            if test_result and test_result.get("success"):
-                success = True
-                break
-
-            self.orchestrator.submit_task("code", {
+            tasks.append({
+                "task_type": "code",
                 "project": project,
-                "mode": "fix",
-                "errors": test_result,
-                "structure": structure
+                "module": module
             })
-            self.orchestrator.process_tasks()
-
-            retries += 1
-
-            self.missions.update_mission(
-                mission_id,
-                f"Fix cycle {retries}"
-            )
 
         # -----------------------------
-        # 4. ANALYZE
+        # 2. SWARM EXECUTION (PARALLELIZED CODING)
         # -----------------------------
-        self.orchestrator.submit_task("analyze", {
-            "project": project,
-            "structure": structure
-        })
-        self.orchestrator.process_tasks()
+        code_results = self.swarm.distribute(tasks)
 
         self.missions.update_mission(
             mission_id,
-            "Analysis complete"
+            "Swarm coding complete"
         )
+
+        # -----------------------------
+        # 3. TESTING PHASE
+        # -----------------------------
+        test_tasks = [{
+            "task_type": "test",
+            "project": project
+        }]
+
+        test_results = self.swarm.distribute(test_tasks)
+
+        success = any(r.get("success") for r in test_results)
+
+        # -----------------------------
+        # 4. ANALYSIS
+        # -----------------------------
+        self.swarm.distribute([{
+            "task_type": "analyze",
+            "project": project
+        }])
 
         # -----------------------------
         # 5. SELF IMPROVEMENT
@@ -128,17 +93,12 @@ class ExecutionEngine:
 
         self.orchestrator.memory.global_memory.store_insight(insights)
 
-        self.missions.update_mission(
-            mission_id,
-            "Self-improvement complete"
-        )
-
         self.missions.complete_mission(mission_id)
 
         return {
             "project": project,
             "mission_id": mission_id,
             "success": success,
-            "structure": structure,
+            "swarm_results": code_results,
             "insights": insights
         }
