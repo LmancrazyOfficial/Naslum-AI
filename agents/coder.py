@@ -1,8 +1,17 @@
 class CoderAgent:
-    def generate_code(self, plan):
-        task = plan["task"]
+    def __init__(self, llm):
+        self.llm = llm
 
-        # Placeholder logic for now (we will upgrade to real AI next step)
-        return {
-            "main.py": f"# Auto-generated code for: {task}\nprint('Hello from AI Factory')"
-        }
+    def generate_code(self, plan):
+        prompt = f"""
+You are a senior software engineer.
+
+Based on this plan:
+{plan}
+
+Generate a complete working Python project.
+Return as file map:
+- filename: code
+"""
+
+        return self.llm.generate(prompt)
