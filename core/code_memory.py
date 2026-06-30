@@ -6,9 +6,9 @@ class CodeMemory:
     def __init__(self):
         self.workspace = "workspace"
 
-    def retrieve_relevant_files(self, query_keywords):
+    def retrieve_relevant_files(self, keywords, limit=5):
 
-        matches = []
+        results = []
 
         for root, _, files in os.walk(self.workspace):
 
@@ -22,23 +22,22 @@ class CodeMemory:
                 except:
                     continue
 
-                score = self._score(content, query_keywords)
+                score = self._score(content, keywords)
 
                 if score > 0:
-                    matches.append({
+                    results.append({
                         "file": path,
                         "score": score,
-                        "snippet": content[:1000]
+                        "snippet": content[:1200]
                     })
 
-        matches.sort(key=lambda x: x["score"], reverse=True)
+        results.sort(key=lambda x: x["score"], reverse=True)
 
-        return matches[:5]
+        return results[:limit]
 
     def _score(self, content, keywords):
 
         content_lower = content.lower()
-
         score = 0
 
         for k in keywords:
