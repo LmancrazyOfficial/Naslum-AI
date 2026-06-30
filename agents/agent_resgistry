@@ -1,0 +1,41 @@
+class AgentRegistry:
+    def __init__(self):
+        self.agents = []
+
+    def register(self, agent):
+        """
+        Register a new agent.
+        """
+        self.agents.append(agent)
+
+    def unregister(self, name):
+        """
+        Remove an agent by name.
+        """
+        self.agents = [
+            agent for agent in self.agents
+            if agent.name != name
+        ]
+
+    def get_agent(self, name):
+        """
+        Find an agent by name.
+        """
+        for agent in self.agents:
+            if agent.name == name:
+                return agent
+
+        return None
+
+    def find_agent(self, task):
+        """
+        Find the first agent capable of handling the task.
+        """
+        for agent in self.agents:
+            if agent.can_handle(task):
+                return agent
+
+        return None
+
+    def list_agents(self):
+        return [agent.name for agent in self.agents]
